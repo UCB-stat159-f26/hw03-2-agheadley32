@@ -4,7 +4,15 @@ import pandas as pd
 import pytest
 import requests
 
-from tennis_career.data import _extract_dob, _fetch_text, _format_name, _parse_matches
+
+from tennis_career.data import (
+    _build_frame,
+    _extract_dob,
+    _fetch_text,
+    _format_name,
+    _parse_matches,
+)
+
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -76,3 +84,30 @@ def test_fetch_text_server_error_raises(monkeypatch):
     monkeypatch.setattr(requests, "get", lambda url, **kwargs: FakeResponse(500))
     with pytest.raises(requests.HTTPError):
         _fetch_text("https://fake.url", "Serena Williams")
+
+
+def test_build_frame_female_derives_ages_from_dob():
+    records = _parse_matches(read_fixture("FemalePlayerCareer.js"))
+    df = _build_frame(records, pd.Timestamp("1981-09-26"))
+    first = df.iloc[0]
+    assert first["opponent"] == "Anne Miller"
+    assert first["result"] == "loss"
+    assert first["player_age"] == pytest.approx(14.09, abs=0.01)
+    assert first["opponent_age"] == pytest.approx(18.78, abs=0.01)
+    assert first["age_diff"] == pytest.approx(-4.68, abs=0.01)
+
+
+def test_build_frame_male_uses_given_ages():
+    records = _parse_matches(read_fixture("MalePlayerCareer.js"))
+    df = _build_frame(records, pd.Timestamp("1986-06-03"))
+    assert len(df) == 3
+    assert df.iloc[0]["opponent_age"] == pytest.approx(22.2642, abs=0.001)
+    assert df.iloc[2]["result"] == "win"
+
+
+def test_build_frame_drops_missing_opponent_info():
+    records = _parse_matches(read_fixture("FemalePlayerCareer.js"))
+    records[0][16] = ""
+    df = _build_frame(records, pd.Timestamp("1981-09-26"))
+    assert len(df) == 2
+    assert "Anne Miller" not in df["opponent"].values

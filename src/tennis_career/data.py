@@ -8,6 +8,7 @@ import requests
 
 CAREER_URL = "https://www.tennisabstract.com/jsmatches/{}Career.js"
 PLAYER_URL = "https://www.tennisabstract.com/cgi-bin/player.cgi?p={}"
+COLUMNS = {"date": 0, "result": 4, "opponent": 11, "opponent_info": 16}
 
 
 def _parse_matches(js_text):
@@ -17,10 +18,12 @@ def _parse_matches(js_text):
         raise ValueError("No match data (morematchmx) found in the JS text.")
     return json.loads(found.group(1))
 
+
 def _format_name(player_name):
     """Convert 'serena williams' or 'Serena Williams' to 'SerenaWilliams'."""
     words = player_name.split()
     return "".join(word[0].upper() + word[1:] for word in words)
+
 
 def _extract_dob(page_text):
     """Extract the player's date of birth from a Tennis Abstract player page."""
@@ -28,6 +31,7 @@ def _extract_dob(page_text):
     if found is None:
         raise ValueError("No date of birth found on the player page.")
     return pd.to_datetime(found.group(1), format="%Y%m%d")
+
 
 def _fetch_text(url, player_name):
     """Download a Tennis Abstract page, raising a clear error if the player is missing."""
@@ -39,3 +43,23 @@ def _fetch_text(url, player_name):
         )
     response.raise_for_status()
     return response.text
+
+
+def _opponent_ages(info, dates):
+    """Convert column 16 to opponent ages: a DOB in women's files, an age in men's."""
+    if info.str.contains(".", regex=False).any():
+        return pd.to_numeric(info, errors="coerce")
+    dobs = pd.to_datetime(info, format="%Y%m%d", errors="coerce")
+    return (dates - dobs).dt.days / 365.25
+
+
+def _build_frame(records, player_dob):
+    """Turn raw match records into a data frame of ages and results for plotting."""
+    df = pd.DataFrame({col: [r[i] for r in records] for col, i in COLUMNS.items()})
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    df["result"] = df["result"].map({"W": "win", "L": "loss"})
+    df["player_age"] = (df["date"] - player_dob).dt.days / 365.25
+    df["opponent_age"] = _opponent_ages(df["opponent_info"], df["date"])
+    df["age_diff"] = df["player_age"] - df["opponent_age"]
+    df = df.dropna(subset=["opponent_age"]).drop(columns="opponent_info")
+    return df.reset_index(drop=True)
