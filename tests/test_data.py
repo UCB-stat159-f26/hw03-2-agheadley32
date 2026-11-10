@@ -42,6 +42,15 @@ def test_parse_matches_without_data_raises():
         _parse_matches("<html>Page not found</html>")
 
 
+def test_parse_matches_handles_newline_before_closing_bracket():
+    js_text = (
+        'var morematchmx = [["20010910", "Spain F10"],\n'
+        '          ["20010917", "Seville CH"]\n'
+        "          ];\n"
+    )
+    assert len(_parse_matches(js_text)) == 2
+
+    
 @pytest.mark.parametrize(
     "raw_name", ["serena williams", "Serena Williams", "SerenaWilliams"]
 )
