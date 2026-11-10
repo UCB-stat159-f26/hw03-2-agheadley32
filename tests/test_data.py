@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import requests
 
-from tennis_career.data import _extract_dob, _format_name, _parse_matches
+from tennis_career.data import _extract_dob, _fetch_text, _format_name, _parse_matches
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -46,3 +47,32 @@ def test_extract_dob_returns_date():
 def test_extract_dob_missing_raises():
     with pytest.raises(ValueError, match="date of birth"):
         _extract_dob("<html>No player here</html>")
+
+class FakeResponse:
+    """Stand-in for requests.Response so tests never hit the network."""
+
+    def __init__(self, status_code, text=""):
+        self.status_code = status_code
+        self.text = text
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"{self.status_code} error")
+
+
+def test_fetch_text_returns_page_text(monkeypatch):
+    fake_get = lambda url, **kwargs: FakeResponse(200, "var dob = 19810926;")
+    monkeypatch.setattr(requests, "get", fake_get)
+    assert _fetch_text("https://fake.url", "Serena Williams") == "var dob = 19810926;"
+
+
+def test_fetch_text_unknown_player_raises(monkeypatch):
+    monkeypatch.setattr(requests, "get", lambda url, **kwargs: FakeResponse(404))
+    with pytest.raises(ValueError, match="Gaston Sanchez"):
+        _fetch_text("https://fake.url", "Gaston Sanchez")
+
+
+def test_fetch_text_server_error_raises(monkeypatch):
+    monkeypatch.setattr(requests, "get", lambda url, **kwargs: FakeResponse(500))
+    with pytest.raises(requests.HTTPError):
+        _fetch_text("https://fake.url", "Serena Williams")
