@@ -41,6 +41,8 @@ def _fetch_text(url, player_name):
             f"Player '{player_name}' not found on Tennis Abstract. "
             "Check the spelling, e.g. 'Serena Williams'."
         )
+    if response.status_code == 429:
+        raise RuntimeError("Tennis Abstract is limiting requests. Wait a minute and try again.")
     response.raise_for_status()
     return response.text
 

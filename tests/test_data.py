@@ -96,7 +96,12 @@ def test_fetch_text_server_error_raises(monkeypatch):
     with pytest.raises(requests.HTTPError):
         _fetch_text("https://fake.url", "Serena Williams")
 
+def test_fetch_text_rate_limited_raises(monkeypatch):
+    monkeypatch.setattr(requests, "get", lambda url, **kwargs: FakeResponse(429))
+    with pytest.raises(RuntimeError, match="Wait a minute"):
+        _fetch_text("https://fake.url", "Venus Williams")
 
+        
 def test_build_frame_female_derives_ages_from_dob():
     records = _parse_matches(read_fixture("FemalePlayerCareer.js"))
     df = _build_frame(records, pd.Timestamp("1981-09-26"))
