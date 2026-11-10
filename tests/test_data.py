@@ -1,8 +1,9 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
-from tennis_career.data import _parse_matches
+from tennis_career.data import _extract_dob, _format_name, _parse_matches
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -28,3 +29,20 @@ def test_parse_matches_male():
 def test_parse_matches_without_data_raises():
     with pytest.raises(ValueError, match="morematchmx"):
         _parse_matches("<html>Page not found</html>")
+
+
+@pytest.mark.parametrize(
+    "raw_name", ["serena williams", "Serena Williams", "SerenaWilliams"]
+)
+def test_format_name_accepts_all_forms(raw_name):
+    assert _format_name(raw_name) == "SerenaWilliams"
+
+
+def test_extract_dob_returns_date():
+    page_text = "var fullname = 'Serena Williams';\nvar dob = 19810926;"
+    assert _extract_dob(page_text) == pd.Timestamp("1981-09-26")
+
+
+def test_extract_dob_missing_raises():
+    with pytest.raises(ValueError, match="date of birth"):
+        _extract_dob("<html>No player here</html>")
