@@ -13,6 +13,8 @@ from tennis_career.data import (
     _parse_matches,
 )
 
+from tennis_career import get_career_matches
+
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -111,3 +113,24 @@ def test_build_frame_drops_missing_opponent_info():
     df = _build_frame(records, pd.Timestamp("1981-09-26"))
     assert len(df) == 2
     assert "Anne Miller" not in df["opponent"].values
+
+
+def fake_tennis_abstract(url, **kwargs):
+    """Return fixture text for the career file and a fake player page otherwise."""
+    if "jsmatches" in url:
+        return FakeResponse(200, read_fixture("FemalePlayerCareer.js"))
+    return FakeResponse(200, "var fullname = 'Serena Williams';\nvar dob = 19810926;")
+
+
+def test_get_career_matches_end_to_end(monkeypatch):
+    monkeypatch.setattr(requests, "get", fake_tennis_abstract)
+    df = get_career_matches("serena williams")
+    assert len(df) == 3
+    assert df["player"].iloc[0] == "Serena Williams"
+    assert {"player_age", "opponent_age", "age_diff", "result"} <= set(df.columns)
+
+
+def test_get_career_matches_invalid_name_raises(monkeypatch):
+    monkeypatch.setattr(requests, "get", lambda url, **kwargs: FakeResponse(404))
+    with pytest.raises(ValueError, match="Gaston Sanchez"):
+        get_career_matches("Gaston Sanchez")

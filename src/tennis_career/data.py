@@ -63,3 +63,17 @@ def _build_frame(records, player_dob):
     df["age_diff"] = df["player_age"] - df["opponent_age"]
     df = df.dropna(subset=["opponent_age"]).drop(columns="opponent_info")
     return df.reset_index(drop=True)
+
+
+def get_career_matches(player_name):
+    """Retrieve a player's career matches from Tennis Abstract, ready for plotting.
+
+    Accepts names like "serena williams", "Serena Williams", or "SerenaWilliams".
+    Raises ValueError if the player is not found on Tennis Abstract.
+    """
+    name = _format_name(player_name)
+    js_text = _fetch_text(CAREER_URL.format(name), player_name)
+    page_text = _fetch_text(PLAYER_URL.format(name), player_name)
+    df = _build_frame(_parse_matches(js_text), _extract_dob(page_text))
+    df.insert(0, "player", re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name))
+    return df
